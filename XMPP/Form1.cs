@@ -1,6 +1,4 @@
-﻿using Artalk.Xmpp.Client;
-using Artalk.Xmpp.Im;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -11,13 +9,13 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Threading;
+using S22.Xmpp.Client;
 
 namespace XMPP
 {
     public partial class Form1 : Form
     {
-
-        ArtalkXmppClient client;
+        private XmppClient client;
         SynchronizationContext _sync;
         public Form1()
         {
@@ -27,22 +25,29 @@ namespace XMPP
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            client = new ArtalkXmppClient(txtServer.Text, txtUsername.Text, txtPassword.Text);
-            client.Message += OnNewMessage;
+
         }
 
-        private void OnNewMessage(object sender, MessageEventArgs e)
-        {
-            //MessageBox.Show("Message from <" + e.Jid + ">: " + e.Message.Body);
 
-            _sync.Send(x => {
-                rtf.AppendText("Message from <" + e.Jid + ">: " + e.Message.Body + "\n");
-            }, null);
-        }
 
         private void button1_Click(object sender, EventArgs e)
         {
+            client = new XmppClient(txtServer.Text.Trim(), 
+                txtUsername.Text.Trim(),
+                txtPassword.Text.Trim());
+
+            client.Message += (ss, ee) =>
+             {
+                 _sync.Send(x => {
+                     var txt = $"Pesan dari <{ee.Jid.Node}@{ee.Jid.Domain}> {ee.Message.Body}\n";
+                     rtf.AppendText(txt);
+                 }, null);
+
+             };
+
             client.Connect();
+            var txt2 = $"Terkoneksi ke <{client.Jid.Node}@{client.Jid.Domain}>\n";
+            rtf.AppendText(txt2);
 
             btnConnect.Enabled = false;
             btnDisconnect.Enabled = true;
@@ -50,15 +55,19 @@ namespace XMPP
 
         private void btnDiconnect_Click(object sender, EventArgs e)
         {
-            client.Dispose();
+
+            client?.Close();
+
             btnConnect.Enabled = true;
             btnDisconnect.Enabled = false;
         }
 
         private void btnSend_Click(object sender, EventArgs e)
         {
-            client.SendMessage(
-                new Artalk.Xmpp.Jid("xmpp.jp", "syafrie007"), txtMessage.Text,type: MessageType.Normal);
+            if (client == null)
+                return;
+
+            client.SendMessage(txtTo.Text.Trim(), txtMessage.Text.Trim());
 
         }
     }
