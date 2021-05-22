@@ -9,13 +9,15 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Threading;
-using S22.Xmpp.Client;
+using S22.Xmpp.Im;
+using jabber.client;
+using System.Diagnostics;
 
 namespace XMPP
 {
     public partial class Form1 : Form
     {
-        private XmppClient client;
+        private JabberClient client;
         SynchronizationContext _sync;
         public Form1()
         {
@@ -32,21 +34,27 @@ namespace XMPP
 
         private void button1_Click(object sender, EventArgs e)
         {
-            client = new XmppClient(txtServer.Text.Trim(), 
-                txtUsername.Text.Trim(),
-                txtPassword.Text.Trim());
-
-            client.Message += (ss, ee) =>
+            client = new jabber.client.JabberClient();
+            client.Password = txtPassword.Text.Trim();
+            client.User = txtUsername.Text.Trim();
+            client.Server = txtServer.Text.Trim();
+            client.OnReadText += (ss, ee)=>{
+                var ll = "";
+            };
+            client.OnMessage += (ss, ee) =>
              {
                  _sync.Send(x => {
-                     var txt = $"Pesan dari <{ee.Jid.Node}@{ee.Jid.Domain}> {ee.Message.Body}\n";
+                     var txt = $"Pesan dari <{ee.ID}> {ee.Body}\n";
                      rtf.AppendText(txt);
                  }, null);
 
              };
 
+
             client.Connect();
-            var txt2 = $"Terkoneksi ke <{client.Jid.Node}@{client.Jid.Domain}>\n";
+            client.Login();
+            //client.SetStatus(new Status(Availability.Online, "kiosgamer",priority: 127));
+            var txt2 = $"Terkoneksi ke <{client.JID}>\n";
             rtf.AppendText(txt2);
 
             btnConnect.Enabled = false;
@@ -62,12 +70,24 @@ namespace XMPP
             btnDisconnect.Enabled = false;
         }
 
-        private void btnSend_Click(object sender, EventArgs e)
+        private async void btnSend_Click(object sender, EventArgs e)
         {
             if (client == null)
                 return;
 
-            client.SendMessage(txtTo.Text.Trim(), txtMessage.Text.Trim());
+            for(var i = numericUpDown1.Value; i <= 1000000; i++)
+            {
+                try
+                {
+                    client.Message("x220992@xmpp.jp", $"#test{i}.5.1460139372");
+                    rtf.AppendText($"Mengirim   : #test{i}.5.1460139372\n");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex.ToString());
+                }
+                await Task.Delay(3000);
+            }
 
         }
     }
