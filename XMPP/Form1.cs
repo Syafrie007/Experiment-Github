@@ -86,7 +86,7 @@ namespace XMPP
                 {
                     Debug.WriteLine(ex.ToString());
                 }
-                await Task.Delay(3000);
+                await Task.Delay(20000);
             }
 
         }

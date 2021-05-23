@@ -81,7 +81,7 @@ namespace XMPP
             this.txtUsername.Name = "txtUsername";
             this.txtUsername.Size = new System.Drawing.Size(242, 20);
             this.txtUsername.TabIndex = 2;
-            this.txtUsername.Text = "kiosgamer";
+            this.txtUsername.Text = "y220992";
             // 
             // txtPassword
             // 
@@ -89,7 +89,7 @@ namespace XMPP
             this.txtPassword.Name = "txtPassword";
             this.txtPassword.Size = new System.Drawing.Size(242, 20);
             this.txtPassword.TabIndex = 2;
-            this.txtPassword.Text = "zxcvbnm1234567";
+            this.txtPassword.Text = "y12345";
             // 
             // label1
             // 
