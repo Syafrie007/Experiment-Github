@@ -44,7 +44,7 @@ namespace XMPP
             client.OnMessage += (ss, ee) =>
              {
                  _sync.Send(x => {
-                     var txt = $"Pesan dari <{ee.ID}> {ee.Body}\n";
+                     var txt = $"Pesan dari <{ee.From}> {ee.Body}\n";
                      rtf.AppendText(txt);
                  }, null);
 
@@ -70,17 +70,21 @@ namespace XMPP
             btnDisconnect.Enabled = false;
         }
 
+        private Random _rnd=new Random();
         private async void btnSend_Click(object sender, EventArgs e)
         {
             if (client == null)
                 return;
 
+            var s = new[] { "5", "530", "510", "100", "35", "25", "15", "25", "40", "5320",
+            "320","22","110","155","60","mingguan","bulanan","mingguan","bulanan"};
+
             for(var i = numericUpDown1.Value; i <= 1000000; i++)
             {
                 try
                 {
-                    client.Message("x220992@xmpp.jp", $"#test{i}.5.1460139372");
-                    rtf.AppendText($"Mengirim   : #test{i}.5.1460139372\n");
+                    client.Message("x220992@xmpp.jp", $"#test{i}.{s[_rnd.Next(0, s.Length - 1)]}.1460139372");
+                    rtf.AppendText($"Mengirim   : #test{i}.{s[_rnd.Next(0,s.Length-1)]}.1460139372\n");
                 }
                 catch (Exception ex)
                 {
