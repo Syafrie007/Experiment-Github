@@ -76,23 +76,58 @@ namespace XMPP
             if (client == null)
                 return;
 
-            var s = new[] { "5", "530", "510", "100", "35", "25", "15", "25", "40", "5320",
-            "320","22","110","155","60","mingguan","bulanan","mingguan","bulanan"};
+            //var s = new[] { "5", "530", "510", "100", "35", "25", "15", "25", "40", "5320",
+            //"320","22","110","155","60","mingguan","bulanan","mingguan","bulanan"};
+
+
+            var s=new[] {"10" };
 
             for(var i = numericUpDown1.Value; i <= 1000000; i++)
             {
                 try
                 {
-                    client.Message("x220992@xmpp.jp", $"#test{i}.{s[_rnd.Next(0, s.Length - 1)]}.1460139372");
-                    rtf.AppendText($"Mengirim   : #test{i}.{s[_rnd.Next(0,s.Length-1)]}.1460139372\n");
+                    client.Message("x220992@xmpp.jp", $"#test{i}.{s[_rnd.Next(0, s.Length - 1)]}.785612127");
+                    rtf.AppendText($"Mengirim   : #test{i}.{s[_rnd.Next(0,s.Length-1)]}.785612127\n");
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine(ex.ToString());
                 }
-                await Task.Delay(20000);
+                await Task.Delay(2000);
             }
 
+        }
+
+
+        public static readonly DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        public static DateTime FromUnixTime(long unixTime)
+        {
+            var rval = epoch.AddSeconds(unixTime);
+            return rval;
+        }
+
+        public static long UnixTimeNow()
+        {
+            var timeSpan = (DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0));
+            return (long)timeSpan.TotalSeconds;
+        }
+
+        public static long ToUnixTime( DateTime dateTime)
+        {
+            var timeSpan = (dateTime - new DateTime(1970, 1, 1, 0, 0, 0));
+            return (long)timeSpan.TotalSeconds;
+        }
+
+
+        private void button1_Click_1(object sender, EventArgs e)
+        {
+            var t = new OtpNet.Hotp(OtpNet.Base32Encoding.ToBytes ("LS7XPKD55HWIDXLR"));
+            var i = UnixTimeNow() / 180;
+            var ok =180- UnixTimeNow() % 180;
+            var o=t.ComputeHOTP(i);
+
+            rtf.AppendText(o + $"    {ok}" + "\n");
         }
     }
 
