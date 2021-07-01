@@ -29,9 +29,12 @@ namespace WindowsFormsApp1
         /// </summary>
         private void InitializeComponent()
         {
+            Syncfusion.Windows.Forms.Tools.MetroSplitButtonRenderer metroSplitButtonRenderer2 = new Syncfusion.Windows.Forms.Tools.MetroSplitButtonRenderer();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form2));
-            Syncfusion.Windows.Forms.Tools.TreeNavigator.HeaderCollection headerCollection1 = new Syncfusion.Windows.Forms.Tools.TreeNavigator.HeaderCollection();
-            Syncfusion.Windows.Forms.MetroColorTable metroColorTable1 = new Syncfusion.Windows.Forms.MetroColorTable();
+            Syncfusion.Windows.Forms.Tools.TreeNavigator.HeaderCollection headerCollection2 = new Syncfusion.Windows.Forms.Tools.TreeNavigator.HeaderCollection();
+            Syncfusion.Windows.Forms.Tools.CustomImageCollection customImageCollection2 = new Syncfusion.Windows.Forms.Tools.CustomImageCollection();
+            Syncfusion.Windows.Forms.Tools.ResetButton resetButton2 = new Syncfusion.Windows.Forms.Tools.ResetButton();
+            this.splitButton1 = new Syncfusion.Windows.Forms.Tools.SplitButton();
             this.multiSelectionComboBox1 = new Syncfusion.Windows.Forms.Tools.MultiSelectionComboBox();
             this.treeNavigator1 = new Syncfusion.Windows.Forms.Tools.TreeNavigator();
             this.treeMenuItem1 = new Syncfusion.Windows.Forms.Tools.TreeMenuItem();
@@ -45,9 +48,27 @@ namespace WindowsFormsApp1
             this.barItem2 = new Syncfusion.Windows.Forms.Tools.XPMenus.BarItem();
             this.barItem3 = new Syncfusion.Windows.Forms.Tools.XPMenus.BarItem();
             this.barItem4 = new Syncfusion.Windows.Forms.Tools.XPMenus.BarItem();
-            this.colorUIControl1 = new Syncfusion.Windows.Forms.ColorUIControl();
+            this.ratingControl1 = new Syncfusion.Windows.Forms.Tools.RatingControl();
             ((System.ComponentModel.ISupportInitialize)(this.multiSelectionComboBox1)).BeginInit();
             this.SuspendLayout();
+            // 
+            // splitButton1
+            // 
+            this.splitButton1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(22)))), ((int)(((byte)(165)))), ((int)(((byte)(220)))));
+            this.splitButton1.BeforeTouchSize = new System.Drawing.Size(133, 30);
+            this.splitButton1.DropDownPosition = Syncfusion.Windows.Forms.Tools.Position.Bottom;
+            this.splitButton1.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.splitButton1.ForeColor = System.Drawing.Color.Black;
+            this.splitButton1.Location = new System.Drawing.Point(300, 8);
+            this.splitButton1.MinimumSize = new System.Drawing.Size(75, 23);
+            this.splitButton1.Name = "splitButton1";
+            metroSplitButtonRenderer2.SplitButton = this.splitButton1;
+            this.splitButton1.Renderer = metroSplitButtonRenderer2;
+            this.splitButton1.ShowDropDownOnButtonClick = false;
+            this.splitButton1.Size = new System.Drawing.Size(133, 30);
+            this.splitButton1.TabIndex = 4;
+            this.splitButton1.Text = "asdasd";
+            this.splitButton1.ThemeName = "Metro";
             // 
             // multiSelectionComboBox1
             // 
@@ -55,7 +76,7 @@ namespace WindowsFormsApp1
             this.multiSelectionComboBox1.ButtonStyle = Syncfusion.Windows.Forms.ButtonAppearance.Metro;
             this.multiSelectionComboBox1.DataSource = ((object)(resources.GetObject("multiSelectionComboBox1.DataSource")));
             this.multiSelectionComboBox1.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.multiSelectionComboBox1.Location = new System.Drawing.Point(266, 80);
+            this.multiSelectionComboBox1.Location = new System.Drawing.Point(13, 8);
             this.multiSelectionComboBox1.Name = "multiSelectionComboBox1";
             this.multiSelectionComboBox1.Size = new System.Drawing.Size(281, 30);
             this.multiSelectionComboBox1.TabIndex = 0;
@@ -65,8 +86,8 @@ namespace WindowsFormsApp1
             // 
             // treeNavigator1
             // 
-            headerCollection1.Font = new System.Drawing.Font("Arial", 8F);
-            this.treeNavigator1.Header = headerCollection1;
+            headerCollection2.Font = new System.Drawing.Font("Arial", 8F);
+            this.treeNavigator1.Header = headerCollection2;
             this.treeNavigator1.ItemBackColor = System.Drawing.SystemColors.Control;
             this.treeNavigator1.Items.Add(this.treeMenuItem1);
             this.treeNavigator1.Items.Add(this.treeMenuItem2);
@@ -81,6 +102,7 @@ namespace WindowsFormsApp1
             this.treeNavigator1.TabIndex = 2;
             this.treeNavigator1.Text = "treeNavigator1";
             this.treeNavigator1.ThemeName = "Metro";
+            this.treeNavigator1.UseTouchScrollBehavior = true;
             // 
             // treeMenuItem1
             // 
@@ -176,24 +198,23 @@ namespace WindowsFormsApp1
             this.barItem4.ShowToolTipInPopUp = false;
             this.barItem4.SizeToFit = true;
             // 
-            // colorUIControl1
+            // ratingControl1
             // 
-            this.colorUIControl1.BeforeTouchSize = new System.Drawing.Size(331, 261);
-            this.colorUIControl1.BorderStyle = System.Windows.Forms.BorderStyle.None;
-            this.colorUIControl1.ForeColor = System.Drawing.SystemColors.ControlText;
-            this.colorUIControl1.Location = new System.Drawing.Point(293, 135);
-            this.colorUIControl1.Name = "colorUIControl1";
-            this.colorUIControl1.ScrollMetroColorTable = metroColorTable1;
-            this.colorUIControl1.Size = new System.Drawing.Size(331, 261);
-            this.colorUIControl1.TabIndex = 3;
-            this.colorUIControl1.Text = "colorUIControl1";
-            this.colorUIControl1.ThemeName = "Metro";
+            this.ratingControl1.Images = customImageCollection2;
+            this.ratingControl1.Location = new System.Drawing.Point(439, 10);
+            this.ratingControl1.Name = "ratingControl1";
+            this.ratingControl1.ResetButton = resetButton2;
+            this.ratingControl1.Shape = Syncfusion.Windows.Forms.Tools.Shapes.Heart;
+            this.ratingControl1.Size = new System.Drawing.Size(150, 28);
+            this.ratingControl1.TabIndex = 5;
+            this.ratingControl1.Text = "ratingControl1";
             // 
             // Form2
             // 
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.None;
-            this.ClientSize = new System.Drawing.Size(800, 450);
-            this.Controls.Add(this.colorUIControl1);
+            this.ClientSize = new System.Drawing.Size(800, 522);
+            this.Controls.Add(this.ratingControl1);
+            this.Controls.Add(this.splitButton1);
             this.Controls.Add(this.multiSelectionComboBox1);
             this.Controls.Add(this.treeNavigator1);
             this.Name = "Form2";
@@ -219,6 +240,7 @@ namespace WindowsFormsApp1
         private Syncfusion.Windows.Forms.Tools.XPMenus.BarItem barItem2;
         private Syncfusion.Windows.Forms.Tools.XPMenus.BarItem barItem3;
         private Syncfusion.Windows.Forms.Tools.XPMenus.BarItem barItem4;
-        private Syncfusion.Windows.Forms.ColorUIControl colorUIControl1;
+        private Syncfusion.Windows.Forms.Tools.SplitButton splitButton1;
+        private Syncfusion.Windows.Forms.Tools.RatingControl ratingControl1;
     }
 }
