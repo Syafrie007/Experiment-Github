@@ -1,5 +1,6 @@
 ﻿using CefSharp;
 using CefSharp.WinForms;
+using OtpNet;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -84,6 +85,20 @@ document.evaluate(`//a[@class='gb_D']`, document, null, XPathResult.FIRST_ORDERE
 
             browser.ExecuteScriptAsync(script3);
             //browser.GetBrowser().MainFrame.ExecuteJavaScriptAsync(script);
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            var secretKey = Base32Encoding.ToBytes("M5BGEMCPNY3TS2TJGE3EGTKFIVXWQ2TRGE2TK6SUJNJDCR3B");
+            var totp = new Totp(secretKey);
+            var otp = totp.ComputeTotp();
+
+            var m= "";
         }
     }
 }
