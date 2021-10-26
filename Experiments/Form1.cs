@@ -92,13 +92,28 @@ document.evaluate(`//a[@class='gb_D']`, document, null, XPathResult.FIRST_ORDERE
 
         }
 
+        public byte[] encrypt(ProvisionMessage message)// throws InvalidKeyException
+        {
+            ECKeyPair ourKeyPair = Curve.generateKeyPair();
+            byte[] sharedSecret = Curve.calculateAgreement(theirPublicKey, ourKeyPair.getPrivateKey());
+            byte[] derivedSecret = new HKDFv3().deriveSecrets(sharedSecret, Encoding.UTF8.GetBytes("TextSecure Provisioning Message"), 64);
+            byte[][] parts = Util.split(derivedSecret, 32, 32);
+
+            byte[] version = { 0x01 };
+            byte[] ciphertext = getCiphertext(parts[0], message.ToByteArray());
+            byte[] mac = getMac(parts[1], Util.join(version, ciphertext));
+            byte[] body = Util.join(version, ciphertext, mac);
+
+            return ProvisionEnvelope.CreateBuilder()
+                                    .SetPublicKey(ByteString.CopyFrom(ourKeyPair.getPublicKey().serialize()))
+                                    .SetBody(ByteString.CopyFrom(body))
+                                    .Build()
+                                    .ToByteArray();
+        }
+
         private void button3_Click(object sender, EventArgs e)
         {
-            var secretKey = Base32Encoding.ToBytes("M5BGEMCPNY3TS2TJGE3EGTKFIVXWQ2TRGE2TK6SUJNJDCR3B");
-            var totp = new Totp(secretKey);
-            var otp = totp.ComputeTotp();
-
-            var m= "";
+            
         }
     }
 }
