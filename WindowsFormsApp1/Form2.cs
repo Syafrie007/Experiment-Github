@@ -24,11 +24,11 @@ namespace WindowsFormsApp1
 
         private void Form2_Load(object sender, EventArgs e)
         {
-            var l=GenerateDummyTags(100);
+            var l=GenerateDummyTags(1);
 
             _records=new BindingList<TagRecord>(l);
             
-            _readCountMonitor = new ReadCountMonitor("", 1);
+            _readCountMonitor = new ReadCountMonitor("http://localhost:5000", 1);
             _readCountMonitor.RequiredTimeDiff = TimeSpan.FromSeconds(1);
 
 
@@ -50,7 +50,8 @@ namespace WindowsFormsApp1
             {
                 dummyTags.Add(new TagRecord
                 {
-                    EPC = $"EPC-{random.Next(100000, 999999)}",
+                    //EPC = $"EPC-{random.Next(100000, 999999)}",
+                    EPC= "EPC12345",
                     NamaPerangkat = $"Device-{random.Next(1, 10)}",
                     ReadCount = random.Next(1, 50)
                 });

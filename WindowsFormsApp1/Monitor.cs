@@ -10,6 +10,8 @@ using System.Timers;
 using PetaPoco;
 using Newtonsoft.Json;
 using System.Diagnostics;
+using System.Threading.Tasks;
+using System.Net.Http;
 
 namespace xx
 {
@@ -43,6 +45,7 @@ namespace xx
         private readonly Database db;
         private readonly Dictionary<string, TagRecord> monitoredTags = new Dictionary<string, TagRecord>();
         private readonly Dictionary<string, int> bacaKe = new Dictionary<string, int>();
+        private readonly List<Tuple<TagRecord ,DateTime ,int >> ListDataBaca=new List<Tuple<TagRecord, DateTime, int>>();
         public event EventHandler<ReadCountChangedEventArgs> ReadCountChanged;
         public TimeSpan RequiredTimeDiff { get; set; } = TimeSpan.FromMinutes(5);
         public string NamaPerangkat { get; set; }
@@ -54,7 +57,7 @@ namespace xx
             db = new Database($"Data Source={dbPath};Version=3;", "Sqlite");
             EnsureDatabaseCreated();
             pushTimer = new Timer(pushIntervalSeconds * 1000);
-            pushTimer.Elapsed += (s, e) => PushDataToServer();
+            pushTimer.Elapsed += async (s, e) => await PushDataToServer();
             Debug.WriteLine("ReadCountMonitor initialized.");
         }
 
@@ -125,11 +128,13 @@ namespace xx
                 {
                     bacaKe = ke + 1;
                     this.bacaKe[epc] = bacaKe;
+                    ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag,now,bacaKe));
                 }
                 else
                 {
                     bacaKe = 1;
                     this.bacaKe.Add(epc, bacaKe);
+                    ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag, now, bacaKe));
                 }
 
                 lastReadTimes[epc] = now;
@@ -149,18 +154,18 @@ namespace xx
                 Nama_Perangkat = NamaPerangkat,
                 Epc = tag.EPC,
                 Waktu_Scan = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
-                Baca_Ke = bacaKe
+                Baca_ke = bacaKe
             });
             Debug.WriteLine($"Saved tag {tag.EPC}-baca ke : {bacaKe} to database.");
         }
 
-        private void PushDataToServer()
+        private async Task PushDataToServer()
         {
             if (!isMonitoring || !HasInternetConnection()) return;
             var scanDataList = db.Fetch<dynamic>("SELECT * FROM ScanData");
             foreach (var scanData in scanDataList)
             {
-                if (SendToServer(scanData))
+                if (await SendToServer(scanData))
                 {
                     db.Execute("DELETE FROM ScanData WHERE Id = @0", scanData.Id);
                     Debug.WriteLine($"Pushed tag {scanData.Epc} : {scanData.Baca_Ke} to server.");
@@ -172,19 +177,37 @@ namespace xx
             }
         }
 
-        private bool SendToServer(dynamic scanData)
+        private async Task<bool> SendToServer(dynamic scanData)
         {
             try
             {
-                using (var client = new WebClient())
-                {
-                    //client.Headers[HttpRequestHeader.ContentType] = "application/json";
-                    //var jsonData = JsonConvert.SerializeObject(scanData);
-                    //client.UploadString(apiEndpoint, "POST", jsonData);
-                }
+                //var client = new HttpClient();
+                //var request = new HttpRequestMessage(HttpMethod.Post, apiEndpoint + "/tagrecord");
+                //var jsonContent = JsonConvert.SerializeObject(scanData);
+                //var content = new StringContent(jsonContent, null, "application/json");
+                //request.Content = content;
+
+                //var response = await client.SendAsync(request);
+                //response.EnsureSuccessStatusCode();
+
+                //Console.WriteLine(await response.Content.ReadAsStringAsync());
+
+                var client = new HttpClient();
+                var request = new HttpRequestMessage(HttpMethod.Post, "http://localhost:5000/tagrecord");
+
+
+
+                var cs = JsonConvert.SerializeObject(scanData);
+                var content = new StringContent(cs, null, "application/json");
+                request.Content = content;
+                var response = await client.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+                Console.WriteLine(await response.Content.ReadAsStringAsync());
+
+
                 return true;
             }
-            catch
+            catch(Exception ex)
             {
                 return false;
             }
