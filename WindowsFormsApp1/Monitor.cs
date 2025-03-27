@@ -40,6 +40,9 @@ namespace xx
 
     public class ReadCountMonitor
     {
+
+        private List<Tuple<string, DateTime>> logs = new List<Tuple<string, DateTime>>();
+
         private readonly Dictionary<string, DateTime> lastReadTimes = new Dictionary<string, DateTime>();
         private readonly string dbPath = "temp.db";
         private readonly string apiEndpoint;
@@ -49,24 +52,42 @@ namespace xx
         private readonly Dictionary<string, int> bacaKe = new Dictionary<string, int>();
         private readonly List<Tuple<TagRecord ,DateTime ,int >> ListDataBaca=new List<Tuple<TagRecord, DateTime, int>>();
 
-
         private TimeSpan apiReqTimeout = TimeSpan.FromSeconds(5);
         
         
         public event EventHandler<ReadCountChangedEventArgs> ReadCountChanged;
+
+
+        //public properties
         public TimeSpan RequiredTimeDiff { get; set; } = TimeSpan.FromMinutes(5);
         public string NamaPerangkat { get; set; }
+        
+        public string NomorTelpAdmin { get; set; }
+
+        public Settings Settings { get; set; }
+
+
+        private string _WaBlastToken;
         private bool isMonitoring = false;
 
-        public ReadCountMonitor(string apiEndpoint, int pushIntervalSeconds)
+        public ReadCountMonitor(string settingFileName)
         {
-            this.apiEndpoint = apiEndpoint;
+            if (!File.Exists(settingFileName))
+            {
+                throw new Exception("Belum ada pengaturan");                
+            }
+
+            Settings = new Settings(settingFileName);
+            Settings.Reload();
+
+            _WaBlastToken = Settings.WaBlasToken;
+            this.apiEndpoint = Settings.ApiEndPoint;
             db = new Database($"Data Source={dbPath};Version=3;", "Sqlite");
             EnsureDatabaseCreated();
             //pushTimer = new Timer(pushIntervalSeconds * 1000);
             //pushTimer.Elapsed += async (s, e) => await PushDataToServerFromTemp();
             _=Monitor();
-            Debug.WriteLine("ReadCountMonitor initialized.");
+            Log("ReadCountMonitor initialized.");
         }
 
         public void Start()
@@ -74,14 +95,14 @@ namespace xx
             if (isMonitoring) return;
             isMonitoring = true;
             //pushTimer.Start();
-            Debug.WriteLine("Monitoring started.");
+            Log("Monitoring started.");
         }
 
         public void Stop()
         {
             isMonitoring = false;
             //pushTimer.Stop();
-            Debug.WriteLine("Monitoring stopped.");
+            Log("Monitoring stopped.");
         }
 
         private async Task Monitor()
@@ -127,7 +148,7 @@ namespace xx
                     }
                 }
             }
-            Debug.WriteLine("Database ensured.");
+            Log("Database ensured.");
         }
 
         public void MonitorTag(TagRecord tag)
@@ -136,7 +157,7 @@ namespace xx
             {
                 monitoredTags[tag.EPC] = tag;
                 tag.PropertyChanged += HandleReadCountChange;
-                Debug.WriteLine($"Monitoring tag {tag.EPC} started.");
+                Log($"Monitoring tag {tag.EPC} started.");
             }
         }
 
@@ -169,6 +190,20 @@ namespace xx
 
                     await SendToServer(obj);
                     this.bacaKe[tag.EPC] = obj.Baca_ke;
+
+
+                    //kirim WA ke user
+                    if (obj.Baca_ke == 1)
+                    {
+                        Log($"Kirim WA ke User {obj.Epc}");
+                        _=KirimWAKeUser(epc, $"Hai, nama kamu tercatat pada {obj.Waktu_Scan}, Scan Ke {obj.Baca_ke}");
+                    }
+
+                    //kirim WA ke Admin
+                    Log($"Kirim WA ke Admin");
+                    _ = KirimWAKeAdmin($"Scan valid {obj.Epc}, Scan valid ke {obj.Baca_ke}");
+
+
                     ReadCountChanged?.Invoke(this, new ReadCountChangedEventArgs(tag, now, this.bacaKe[epc]));
                 }
                 else
@@ -200,7 +235,7 @@ namespace xx
 
             }
 
-            Debug.WriteLine(string.Format("Tag {0} ReadCount updated to {1}. Baca Ke {2}.", epc, tag.ReadCount, bacaKe[epc]));
+            Log(string.Format("Tag {0} ReadCount updated to {1}. Baca Ke {2}.", epc, tag.ReadCount, bacaKe[epc]));
         }
 
         private void SaveToDatabase(TagRecord tag)
@@ -216,7 +251,7 @@ namespace xx
             });
 
 
-            Debug.WriteLine($"Saved tag {tag.EPC}-baca ke : {bacaKe[tag.EPC]} to database.");
+            Log($"Saved tag {tag.EPC}-baca ke : {bacaKe[tag.EPC]} to database.");
         }
 
         private async Task PushDataToServerFromTemp()
@@ -230,7 +265,7 @@ namespace xx
                 "SELECT * FROM ScanData ORDER BY Waktu_Scan ASC");
             if (scanDataList.Count > 0)
             {
-                Debug.WriteLine($"Terdapat {scanDataList.Count} data temporary yang akan dipush ke server.");
+                Log($"Terdapat {scanDataList.Count} data temporary yang akan dipush ke server.");
             }
 
             foreach (var scanData in scanDataList)
@@ -248,7 +283,7 @@ namespace xx
                 if (ok)
                 {
                     db.Execute("DELETE FROM ScanData WHERE Id = @0", scanData.Id);
-                    Debug.WriteLine($"Pushed tag {scanData.Epc} : {scanData.Baca_ke} to server.");
+                    Log($"Pushed tag {scanData.Epc} : {scanData.Baca_ke} to server.");
                 }
                 else
                 {
@@ -327,12 +362,12 @@ namespace xx
 
                 if (response.StatusCode == HttpStatusCode.OK)
                 {
-                    Debug.WriteLine(string.Format($"Server OK"));
+                    Log(string.Format($"Server OK"));
                     return true;
                 }
                 else
                 {
-                    Debug.WriteLine($"Server Bermasalah, {response.StatusCode}");
+                    Log($"Server Bermasalah, {response.StatusCode}");
                     return false;
                 }
 
@@ -385,6 +420,57 @@ namespace xx
             }
         }
 
+
+        public async Task<bool> KirimWAKeUser(string epc,string pesan)
+        {
+            if ( await CekServer())
+            {
+                var noTelp = await GetNoTelp(epc);
+                if (noTelp.Data.Count > 0)
+                {
+                    return await SendWaMessageCore(_WaBlastToken, noTelp.Data.First().No_hp, pesan);
+                }
+                else
+                {
+                    Log("No telp user tidak tersedia.");
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> KirimWAKeAdmin(string pesan)
+        {
+              return await SendWaMessageCore(_WaBlastToken, NomorTelpAdmin, pesan);
+        }
+
+
+        public async Task<RestResponse<List<ApiNoTelp>>> GetNoTelp(string epc)
+        {
+            try
+            {
+                var options = new RestClientOptions(apiEndpoint)
+                {
+                    Timeout = apiReqTimeout,
+                };
+
+                var client = new RestClient(options);
+                var request = new RestRequest($"/nohp/epc/{epc}", Method.Get);
+                var response = await client.ExecuteAsync<List<ApiNoTelp>>(request);
+                return response;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex}");
+                return null;
+            }
+        }
+
+
+
         public List<DbTagRecord> GetAllTagScanFromTemp(string epc)
         {
             var scanDataList = db.Fetch<DbTagRecord>(
@@ -405,6 +491,11 @@ namespace xx
                         f.Text = "Data tag scan dari SERVER";
                         f.dgv.DataSource = res.Data;
                         f.dgv.Columns[0].Visible = false;
+
+                        //remove log tab
+                        f.tabControl1.TabPages.RemoveAt(1);
+                        f.tabControl1.TabPages.RemoveAt(1);
+
                         f.ShowDialog();
                     }
                 }
@@ -418,10 +509,72 @@ namespace xx
                     f.dgv.DataSource = GetAllTagScanFromTemp(epc);
                     f.dgv.Columns[0].Visible = false;
                     f.dgv.Columns[1].Visible = false;
+
+                    //remove log tab
+                    f.tabControl1.TabPages.RemoveAt(1);
+
                     f.ShowDialog();
                 }
             }
         }
+
+        public void ShowLog()
+        {
+            using (var f = new FormTagScanViewer())
+            {
+                f.Text = "Data Log";
+
+                f.SetLog(logs);
+
+                //remove log tab
+                f.tabControl1.TabPages.RemoveAt(0);
+                f.tabControl1.TabPages.RemoveAt(1);
+
+                f.ShowDialog();
+            }
+        }
+
+        public async Task<bool> SendWaMessageCore(string token, string phone, string message)
+        {
+            using (HttpClient client = new HttpClient())
+            {
+
+                Log($"Mengirim pesan WA ke {phone}, Pesan: {message}");
+
+                client.DefaultRequestHeaders.Add("Authorization", token);
+                var content = new StringContent($"{{\"phone\":\"{phone}\",\"message\":\"{message}\"}}", Encoding.UTF8, "application/json");
+                HttpResponseMessage response = await client.PostAsync("https://solo.wablas.com/api/send-message", content);
+
+                Log($"Kirim pesan status kode: {response.StatusCode}");
+
+
+                return response.IsSuccessStatusCode;
+            }
+        }
+
+        private void Log(string pesan)
+        {
+            Debug.WriteLine(pesan);
+            logs.Add(new Tuple<string, DateTime>(pesan, DateTime.Now));
+        }
+    
+
+        public static void ShowSettingsForm(string fname)
+        {
+            using (var f = new FormTagScanViewer())
+            {
+                f.Text = "Settings";
+
+                f.Settings = new Settings(fname);
+                f.Settings.Reload();
+                //remove log tab
+                f.tabControl1.TabPages.RemoveAt(0);
+                f.tabControl1.TabPages.RemoveAt(0);
+
+                f.ShowDialog();
+            }
+        }
+    
 
     }
 
@@ -447,6 +600,14 @@ namespace xx
         public DateTime Waktu_Scan { get; set; }
         public int Baca_ke { get; set; }
     }
+    public class ApiNoTelp
+    {
+        public int Id { get; set; }
+
+        public string Nama { get; set; }
+        public string Epc { get; set; }
+        public string No_hp { get; set; }
+    }
 
     public class DbTagRecord
     {
@@ -459,5 +620,40 @@ namespace xx
         public int Baca_ke { get; set; }
     }
 
+    public class Settings
+    {
+
+        public Settings(string file)
+        {
+            fileName = file;
+        }
+
+        public string WaBlasToken { get; set; }
+
+        public string HpAdmin { get; set; }
+        
+        public string ApiEndPoint { get; set; }
+
+
+        private string fileName;
+
+        public void Save()
+        {
+            var str=JsonConvert.SerializeObject(this);
+            File.WriteAllText(fileName, str);
+
+        }
+
+        public void Reload()
+        {
+            var str = File.ReadAllText(fileName);
+            var s=JsonConvert.DeserializeObject<Settings>(str);
+
+            this.WaBlasToken = s.WaBlasToken;
+            HpAdmin = s.HpAdmin;
+            ApiEndPoint = s.ApiEndPoint;
+
+        }
+    }
 
 }
