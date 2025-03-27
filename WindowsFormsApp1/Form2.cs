@@ -27,13 +27,6 @@ namespace WindowsFormsApp1
 
         private void Form2_Load(object sender, EventArgs e)
         {
-            var l=GenerateDummyTags(1);
-
-            _records=new BindingList<TagRecord>(l);
-
-            //_readCountMonitor = new ReadCountMonitor("http://localhost:5000",
-            //    "H79DarFc0iLXamKRYOWdFR9JTP6iInyBTNuwBi7uKijFIynC84JAP65.wKrBjk97");
-
 
             if (!File.Exists(fs))
             {
@@ -41,6 +34,29 @@ namespace WindowsFormsApp1
             }
 
             _readCountMonitor = new ReadCountMonitor(fs);
+
+
+            _records =new BindingList<TagRecord>();
+
+            _records.ListChanged += (ss, ee) =>
+            {
+                if (ee.ListChangedType == ListChangedType.ItemAdded)
+                {
+                    var obj = _records[ee.NewIndex];
+                    if (string.IsNullOrEmpty(obj.EPC))
+                        return;
+
+                    _readCountMonitor.MonitorTag(_records[ee.NewIndex]);
+
+                }
+            };
+
+
+            //_readCountMonitor = new ReadCountMonitor("http://localhost:5000",
+            //    "H79DarFc0iLXamKRYOWdFR9JTP6iInyBTNuwBi7uKijFIynC84JAP65.wKrBjk97");
+
+
+
 
 
             _readCountMonitor.RequiredTimeDiff = TimeSpan.FromSeconds(10);
@@ -90,7 +106,8 @@ namespace WindowsFormsApp1
 
         private void button2_Click(object sender, EventArgs e)
         {
-            
+            var l = GenerateDummyTags(1);
+            _records.Add(l.First());
         }
 
         private void button3_Click(object sender, EventArgs e)
@@ -102,10 +119,10 @@ namespace WindowsFormsApp1
         private void button4_Click(object sender, EventArgs e)
         {
             //_readCountMonitor.ShowScanTagHistory("EPC12345");
-            //_readCountMonitor.ShowLog();
+            _readCountMonitor.ShowLog();
             
-            ReadCountMonitor.ShowSettingsForm(fs);
-            _readCountMonitor.Settings.Reload();
+            //ReadCountMonitor.ShowSettingsForm(fs);
+            //_readCountMonitor.Settings.Reload();
         }
 
         private async void button5_Click(object sender, EventArgs e)

@@ -151,13 +151,18 @@ namespace xx
             Log("Database ensured.");
         }
 
-        public void MonitorTag(TagRecord tag)
+        public async void MonitorTag(TagRecord tag)
         {
             if (!monitoredTags.ContainsKey(tag.EPC))
             {
                 monitoredTags[tag.EPC] = tag;
                 tag.PropertyChanged += HandleReadCountChange;
                 Log($"Monitoring tag {tag.EPC} started.");
+
+                
+
+                //baca 1
+                await ValidasiTagScan(tag);
             }
         }
 
@@ -166,6 +171,14 @@ namespace xx
             if (!isMonitoring || e.PropertyName != nameof(TagRecord.ReadCount)) return;
 
             var tag = sender as TagRecord;
+
+            await ValidasiTagScan(tag);
+        
+        }
+
+
+        private async Task ValidasiTagScan(TagRecord tag)
+        {
             if (tag == null) return;
 
             var now = DateTime.UtcNow;
@@ -184,7 +197,7 @@ namespace xx
                         Baca_ke = tag.ReadCount,
                         Epc = tag.EPC,
                         Guid = Guid.NewGuid().ToString(),
-                        Nama_Perangkat = tag.NamaPerangkat,
+                        Nama_Perangkat = NamaPerangkat,
                         Waktu_Scan = DateTime.Now
                     };
 
@@ -196,7 +209,7 @@ namespace xx
                     if (obj.Baca_ke == 1)
                     {
                         Log($"Kirim WA ke User {obj.Epc}");
-                        _=KirimWAKeUser(epc, $"Hai, nama kamu tercatat pada {obj.Waktu_Scan}, Scan Ke {obj.Baca_ke}");
+                        _ = KirimWAKeUser(epc, $"Hai, nama kamu tercatat pada {obj.Waktu_Scan}, Scan Ke {obj.Baca_ke}");
                     }
 
                     //kirim WA ke Admin
@@ -221,7 +234,7 @@ namespace xx
                     if (this.bacaKe.TryGetValue(epc, out var ke))
                     {
 
-                        ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag,now,ke));
+                        ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag, now, ke));
                     }
                     else
                     {
@@ -236,7 +249,9 @@ namespace xx
             }
 
             Log(string.Format("Tag {0} ReadCount updated to {1}. Baca Ke {2}.", epc, tag.ReadCount, bacaKe[epc]));
+
         }
+
 
         private void SaveToDatabase(TagRecord tag)
         {
@@ -536,19 +551,43 @@ namespace xx
 
         public async Task<bool> SendWaMessageCore(string token, string phone, string message)
         {
-            using (HttpClient client = new HttpClient())
+            //using (HttpClient client = new HttpClient())
+            //{
+
+            //    Log($"Mengirim pesan WA ke {phone}, Pesan: {message}");
+
+            //    client.DefaultRequestHeaders.Add("Authorization", token);
+            //    var content = new StringContent($"{{\"phone\":\"{phone}\",\"message\":\"{message}\"}}", Encoding.UTF8, "application/json");
+            //    HttpResponseMessage response = await client.PostAsync("https://solo.wablas.com/api/send-message", content);
+
+            //    Log($"Kirim pesan status kode: {response.StatusCode}");
+
+
+            //    return response.IsSuccessStatusCode;
+            //}
+
+
+            try
             {
+                var options = new RestClientOptions(apiEndpoint)
+                {
+                    Timeout = apiReqTimeout,
+                };
 
-                Log($"Mengirim pesan WA ke {phone}, Pesan: {message}");
+                var client = new RestClient(options);
+                var request = new RestRequest("/send-wa", Method.Post);
+                request.AddHeader("Content-Type", "application/json");
+                var body = $@"{{""phone"": ""{phone}"", ""message"": ""{message}""}}";
+                request.AddStringBody(body, DataFormat.Json);
+                RestResponse response = await client.ExecuteAsync(request);
+                Log($"Kirim pesan status kode: {response.Content}");
 
-                client.DefaultRequestHeaders.Add("Authorization", token);
-                var content = new StringContent($"{{\"phone\":\"{phone}\",\"message\":\"{message}\"}}", Encoding.UTF8, "application/json");
-                HttpResponseMessage response = await client.PostAsync("https://solo.wablas.com/api/send-message", content);
-
-                Log($"Kirim pesan status kode: {response.StatusCode}");
-
-
-                return response.IsSuccessStatusCode;
+                return response.StatusCode == HttpStatusCode.OK;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex}");
+                return false;
             }
         }
 
