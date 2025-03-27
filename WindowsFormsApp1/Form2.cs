@@ -29,7 +29,7 @@ namespace WindowsFormsApp1
             _records=new BindingList<TagRecord>(l);
             
             _readCountMonitor = new ReadCountMonitor("http://localhost:5000", 1);
-            _readCountMonitor.RequiredTimeDiff = TimeSpan.FromSeconds(1);
+            _readCountMonitor.RequiredTimeDiff = TimeSpan.FromSeconds(10);
 
 
             dataGridView1.DataSource = _records;
@@ -39,7 +39,6 @@ namespace WindowsFormsApp1
         {
 
         }
-
 
         static List<TagRecord> GenerateDummyTags(int count)
         {
@@ -71,6 +70,7 @@ namespace WindowsFormsApp1
             {
                 _readCountMonitor.MonitorTag(item);
             }
+            _readCountMonitor.NamaPerangkat = "Perangkat test";
             _readCountMonitor.Start();
         }
 
@@ -78,6 +78,11 @@ namespace WindowsFormsApp1
         {
             _readCountMonitor.Stop();
 
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            _readCountMonitor.ShowScanTagHistory("EPC12345");
         }
     }
 }

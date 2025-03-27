@@ -12,6 +12,8 @@ using Newtonsoft.Json;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Net.Http;
+using RestSharp;
+using WindowsFormsApp1;
 
 namespace xx
 {
@@ -41,11 +43,16 @@ namespace xx
         private readonly Dictionary<string, DateTime> lastReadTimes = new Dictionary<string, DateTime>();
         private readonly string dbPath = "temp.db";
         private readonly string apiEndpoint;
-        private readonly Timer pushTimer;
+        //private readonly Timer pushTimer;
         private readonly Database db;
         private readonly Dictionary<string, TagRecord> monitoredTags = new Dictionary<string, TagRecord>();
         private readonly Dictionary<string, int> bacaKe = new Dictionary<string, int>();
         private readonly List<Tuple<TagRecord ,DateTime ,int >> ListDataBaca=new List<Tuple<TagRecord, DateTime, int>>();
+
+
+        private TimeSpan apiReqTimeout = TimeSpan.FromSeconds(5);
+        
+        
         public event EventHandler<ReadCountChangedEventArgs> ReadCountChanged;
         public TimeSpan RequiredTimeDiff { get; set; } = TimeSpan.FromMinutes(5);
         public string NamaPerangkat { get; set; }
@@ -56,8 +63,9 @@ namespace xx
             this.apiEndpoint = apiEndpoint;
             db = new Database($"Data Source={dbPath};Version=3;", "Sqlite");
             EnsureDatabaseCreated();
-            pushTimer = new Timer(pushIntervalSeconds * 1000);
-            pushTimer.Elapsed += async (s, e) => await PushDataToServer();
+            //pushTimer = new Timer(pushIntervalSeconds * 1000);
+            //pushTimer.Elapsed += async (s, e) => await PushDataToServerFromTemp();
+            _=Monitor();
             Debug.WriteLine("ReadCountMonitor initialized.");
         }
 
@@ -65,15 +73,37 @@ namespace xx
         {
             if (isMonitoring) return;
             isMonitoring = true;
-            pushTimer.Start();
+            //pushTimer.Start();
             Debug.WriteLine("Monitoring started.");
         }
 
         public void Stop()
         {
             isMonitoring = false;
-            pushTimer.Stop();
+            //pushTimer.Stop();
             Debug.WriteLine("Monitoring stopped.");
+        }
+
+        private async Task Monitor()
+        {
+            try
+            {
+                while (true)
+                {
+                    if (!isMonitoring)
+                    {
+                        await Task.Delay(1000);
+                        continue;
+                    }
+
+                    await PushDataToServerFromTemp();
+                    await Task.Delay(1000);
+                }
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
         }
 
         private void EnsureDatabaseCreated()
@@ -90,8 +120,8 @@ namespace xx
                         Guid TEXT UNIQUE,
                         Nama_Perangkat TEXT,
                         Epc TEXT,
-                        Waktu_Scan TEXT,
-                        Baca_Ke INTEGER
+                        Waktu_Scan DATETIME,
+                        Baca_ke INTEGER
                     );";
                         cmd.ExecuteNonQuery();
                     }
@@ -110,7 +140,7 @@ namespace xx
             }
         }
 
-        private void HandleReadCountChange(object sender, PropertyChangedEventArgs e)
+        private async void HandleReadCountChange(object sender, PropertyChangedEventArgs e)
         {
             if (!isMonitoring || e.PropertyName != nameof(TagRecord.ReadCount)) return;
 
@@ -123,52 +153,102 @@ namespace xx
 
             if (!isExistingTag || (now - lastReadTimes[epc]) >= RequiredTimeDiff)
             {
-                int bacaKe;
-                if (this.bacaKe.TryGetValue(epc, out var ke))
+
+                lastReadTimes[epc] = now;
+
+                if (await CekServer())
                 {
-                    bacaKe = ke + 1;
-                    this.bacaKe[epc] = bacaKe;
-                    ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag,now,bacaKe));
+                    var obj = new ApiTagRecord()
+                    {
+                        Baca_ke = tag.ReadCount,
+                        Epc = tag.EPC,
+                        Guid = Guid.NewGuid().ToString(),
+                        Nama_Perangkat = tag.NamaPerangkat,
+                        Waktu_Scan = DateTime.Now
+                    };
+
+                    await SendToServer(obj);
+                    this.bacaKe[tag.EPC] = obj.Baca_ke;
+                    ReadCountChanged?.Invoke(this, new ReadCountChangedEventArgs(tag, now, this.bacaKe[epc]));
                 }
                 else
                 {
-                    bacaKe = 1;
-                    this.bacaKe.Add(epc, bacaKe);
-                    ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag, now, bacaKe));
+                    var last = db.Fetch<DbTagRecord>("SELECT * FROM ScanData where Epc=@0 ORDER BY Waktu_Scan DESC Limit 1", tag.EPC)
+                               .FirstOrDefault();
+
+                    //tambah baca ke
+                    if (last != null)
+                    {
+                        this.bacaKe[tag.EPC] = last.Baca_ke + 1;
+                    }
+
+
+                    if (this.bacaKe.TryGetValue(epc, out var ke))
+                    {
+
+                        ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag,now,ke));
+                    }
+                    else
+                    {
+                        this.bacaKe.Add(epc, 1);
+                        ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag, now, 1));
+                    }
+
+                    SaveToDatabase(tag);
+                    ReadCountChanged?.Invoke(this, new ReadCountChangedEventArgs(tag, now, this.bacaKe[epc]));
                 }
 
-                lastReadTimes[epc] = now;
-                SaveToDatabase(tag, bacaKe);
-                ReadCountChanged?.Invoke(this, new ReadCountChangedEventArgs(tag, now, bacaKe));
             }
 
             Debug.WriteLine(string.Format("Tag {0} ReadCount updated to {1}. Baca Ke {2}.", epc, tag.ReadCount, bacaKe[epc]));
         }
 
-
-        private void SaveToDatabase(TagRecord tag, int bacaKe)
+        private void SaveToDatabase(TagRecord tag)
         {
-            db.Insert("ScanData", "Id", new
+
+            db.Insert("ScanData", "Id", new ApiTagRecord()
             {
                 Guid = Guid.NewGuid().ToString(),
                 Nama_Perangkat = NamaPerangkat,
                 Epc = tag.EPC,
-                Waktu_Scan = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
-                Baca_ke = bacaKe
+                Waktu_Scan = DateTime.UtcNow,
+                Baca_ke = this.bacaKe[tag.EPC]
             });
-            Debug.WriteLine($"Saved tag {tag.EPC}-baca ke : {bacaKe} to database.");
+
+
+            Debug.WriteLine($"Saved tag {tag.EPC}-baca ke : {bacaKe[tag.EPC]} to database.");
         }
 
-        private async Task PushDataToServer()
+        private async Task PushDataToServerFromTemp()
         {
-            if (!isMonitoring || !HasInternetConnection()) return;
-            var scanDataList = db.Fetch<dynamic>("SELECT * FROM ScanData");
+
+            //cek server
+            if (!isMonitoring || ! (await CekServer())) return;
+
+
+            var scanDataList = db.Fetch<DbTagRecord>(
+                "SELECT * FROM ScanData ORDER BY Waktu_Scan ASC");
+            if (scanDataList.Count > 0)
+            {
+                Debug.WriteLine($"Terdapat {scanDataList.Count} data temporary yang akan dipush ke server.");
+            }
+
             foreach (var scanData in scanDataList)
             {
-                if (await SendToServer(scanData))
+                var ok = await SendToServer(new ApiTagRecord()
+                {
+                    Baca_ke = scanData.Baca_ke,
+                    Epc = scanData.Epc,
+                    Guid = scanData.Guid,
+                    Nama_Perangkat = scanData.Nama_Perangkat,
+                    Waktu_Scan = scanData.Waktu_Scan
+
+                });
+
+                if (ok)
                 {
                     db.Execute("DELETE FROM ScanData WHERE Id = @0", scanData.Id);
-                    Debug.WriteLine($"Pushed tag {scanData.Epc} : {scanData.Baca_Ke} to server.");
+                    Debug.WriteLine($"Pushed tag {scanData.Epc} : {scanData.Baca_ke} to server.");
                 }
                 else
                 {
@@ -177,57 +257,172 @@ namespace xx
             }
         }
 
-        private async Task<bool> SendToServer(dynamic scanData)
+        public async Task<bool> SendToServer(ApiTagRecord scanData)
         {
             try
             {
-                //var client = new HttpClient();
-                //var request = new HttpRequestMessage(HttpMethod.Post, apiEndpoint + "/tagrecord");
-                //var jsonContent = JsonConvert.SerializeObject(scanData);
-                //var content = new StringContent(jsonContent, null, "application/json");
-                //request.Content = content;
 
-                //var response = await client.SendAsync(request);
-                //response.EnsureSuccessStatusCode();
+                var lastRecord = await GetTagScanTerakhir(scanData.Epc);
 
-                //Console.WriteLine(await response.Content.ReadAsStringAsync());
-
-                var client = new HttpClient();
-                var request = new HttpRequestMessage(HttpMethod.Post, "http://localhost:5000/tagrecord");
+                if (lastRecord.StatusCode != HttpStatusCode.OK)
+                    return false;
 
 
+                if (lastRecord.Data == null)
+                {
+                    Console.WriteLine($"Belum ada data diserver, baca ke akan diset ke 1 ");
 
-                var cs = JsonConvert.SerializeObject(scanData);
-                var content = new StringContent(cs, null, "application/json");
-                request.Content = content;
-                var response = await client.SendAsync(request);
-                response.EnsureSuccessStatusCode();
-                Console.WriteLine(await response.Content.ReadAsStringAsync());
+                    scanData.Baca_ke = 1;
+                }
+                else
+                {
+                    Console.WriteLine($"Data terakhir epc {scanData.Epc}, baca ke={lastRecord.Data.Baca_ke}.");
+
+                    scanData.Baca_ke = lastRecord.Data.Baca_ke + 1;
+                }
 
 
-                return true;
+                var options = new RestClientOptions(apiEndpoint)
+                {
+                    Timeout = apiReqTimeout
+                };
+
+                var client = new RestClient(options);
+                var request = new RestRequest("/tagrecord", Method.Post);
+                request.AddHeader("Content-Type", "application/json");
+                var body = JsonConvert.SerializeObject(scanData);
+                request.AddStringBody(body, DataFormat.Json);
+                RestResponse response = await client.ExecuteAsync(request);
+                if (response.StatusCode ==HttpStatusCode.OK)
+                {
+                    Console.WriteLine($"Berhasil push ke server. " + response.Content);
+                    return true;
+                }
+                else
+                {
+                    Console.WriteLine($"Gagal push data keserver!. Status: {response.StatusCode}");
+                    return false;
+                }
+
             }
             catch(Exception ex)
             {
+                Console.WriteLine($"Error: {ex}");
                 return false;
             }
         }
 
-        private bool HasInternetConnection()
+        public async Task< bool> CekServer()
         {
             try
             {
-                using (var ping = new System.Net.NetworkInformation.Ping())
+                var options = new RestClientOptions(apiEndpoint)
                 {
-                    var reply = ping.Send("8.8.8.8", 1000);
-                    return reply.Status == System.Net.NetworkInformation.IPStatus.Success;
+                    Timeout = TimeSpan.FromMilliseconds(50),
+                };
+
+                var client = new RestClient(options);
+                var request = new RestRequest("/cek", Method.Get);
+                RestResponse response = await client.ExecuteAsync(request);
+
+                if (response.StatusCode == HttpStatusCode.OK)
+                {
+                    Debug.WriteLine(string.Format($"Server OK"));
+                    return true;
                 }
+                else
+                {
+                    Debug.WriteLine($"Server Bermasalah, {response.StatusCode}");
+                    return false;
+                }
+
             }
             catch
             {
                 return false;
             }
         }
+
+        public async Task<RestResponse<ApiTagRecord>> GetTagScanTerakhir(string epc)
+        {
+            try
+            {
+                var options = new RestClientOptions(apiEndpoint)
+                {
+                    Timeout = apiReqTimeout,
+                };
+
+                var client = new RestClient(options);
+                var request = new RestRequest($"/tagrecord/epcTagTerakhir/{epc}", Method.Get);
+                var response = await client.ExecuteAsync<ApiTagRecord>(request);
+                return response;
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine($"Error: {ex}");
+                return null;
+            }
+        }
+
+        public async Task<RestResponse<List<ApiTagRecord>>> GetAllTagScanFromServer(string epc)
+        {
+            try
+            {
+                var options = new RestClientOptions(apiEndpoint)
+                {
+                    Timeout = apiReqTimeout,
+                };
+
+                var client = new RestClient(options);
+                var request = new RestRequest($"/tagrecord/epc/{epc}", Method.Get);
+                var response = await client.ExecuteAsync<List<ApiTagRecord>>(request);
+                return response;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex}");
+                return null;
+            }
+        }
+
+        public List<DbTagRecord> GetAllTagScanFromTemp(string epc)
+        {
+            var scanDataList = db.Fetch<DbTagRecord>(
+                "SELECT * FROM ScanData Where Epc=@0",epc);
+            return scanDataList;
+        }
+
+        public async void ShowScanTagHistory(string epc)
+        {
+
+            if (await CekServer())
+            {
+                var res = await GetAllTagScanFromServer(epc);
+                if (res.StatusCode == HttpStatusCode.OK)
+                {
+                    using (var f = new FormTagScanViewer())
+                    {
+                        f.Text = "Data tag scan dari SERVER";
+                        f.dgv.DataSource = res.Data;
+                        f.dgv.Columns[0].Visible = false;
+                        f.ShowDialog();
+                    }
+                }
+            }
+            else
+            {
+                using (var f = new FormTagScanViewer())
+                {
+                    f.Text = "Data tag scan dari TEMPORARY DATA";
+
+                    f.dgv.DataSource = GetAllTagScanFromTemp(epc);
+                    f.dgv.Columns[0].Visible = false;
+                    f.dgv.Columns[1].Visible = false;
+                    f.ShowDialog();
+                }
+            }
+        }
+
     }
 
     public class ReadCountChangedEventArgs : EventArgs
@@ -243,4 +438,26 @@ namespace xx
             BacaKe = bacaKe;
         }
     }
+
+    public class ApiTagRecord
+    {
+        public string Guid { get; set; }
+        public string Nama_Perangkat { get; set; }
+        public string Epc { get; set; }
+        public DateTime Waktu_Scan { get; set; }
+        public int Baca_ke { get; set; }
+    }
+
+    public class DbTagRecord
+    {
+
+        public int Id { get; set; }
+        public string Guid { get; set; }
+        public string Nama_Perangkat { get; set; }
+        public string Epc { get; set; }
+        public DateTime Waktu_Scan { get; set; }
+        public int Baca_ke { get; set; }
+    }
+
+
 }

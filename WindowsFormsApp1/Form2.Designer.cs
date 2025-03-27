@@ -41,6 +41,7 @@ namespace WindowsFormsApp1
             this.button2 = new System.Windows.Forms.Button();
             this.button3 = new System.Windows.Forms.Button();
             this.numericUpDown1 = new System.Windows.Forms.NumericUpDown();
+            this.button4 = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).BeginInit();
             this.SuspendLayout();
@@ -151,10 +152,21 @@ namespace WindowsFormsApp1
             0,
             0});
             // 
+            // button4
+            // 
+            this.button4.Location = new System.Drawing.Point(378, 216);
+            this.button4.Name = "button4";
+            this.button4.Size = new System.Drawing.Size(75, 23);
+            this.button4.TabIndex = 5;
+            this.button4.Text = "Show";
+            this.button4.UseVisualStyleBackColor = true;
+            this.button4.Click += new System.EventHandler(this.button4_Click);
+            // 
             // Form2
             // 
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.None;
             this.ClientSize = new System.Drawing.Size(800, 522);
+            this.Controls.Add(this.button4);
             this.Controls.Add(this.numericUpDown1);
             this.Controls.Add(this.button3);
             this.Controls.Add(this.button2);
@@ -182,5 +194,6 @@ namespace WindowsFormsApp1
         private System.Windows.Forms.Button button2;
         private System.Windows.Forms.Button button3;
         private System.Windows.Forms.NumericUpDown numericUpDown1;
+        private System.Windows.Forms.Button button4;
     }
 }
