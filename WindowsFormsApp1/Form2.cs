@@ -60,7 +60,6 @@ namespace WindowsFormsApp1
 
 
             _readCountMonitor.RequiredTimeDiff = TimeSpan.FromSeconds(10);
-            _readCountMonitor.NomorTelpAdmin = "6283124204712";
 
 
             dataGridView1.DataSource = _records;
@@ -125,14 +124,13 @@ namespace WindowsFormsApp1
             //_readCountMonitor.Settings.Reload();
         }
 
+        private Dictionary<string, DateTime> _x=new Dictionary<string, DateTime>();
         private async void button5_Click(object sender, EventArgs e)
         {
-            string token = "H79DarFc0iLXamKRYOWdFR9JTP6iInyBTNuwBi7uKijFIynC84JAP65.wKrBjk97"; // Ganti dengan API Key dari Wablas
-            string phoneNumber = "6283124204712"; // Nomor tujuan
-            string message = "Halo, ini pesan dari C#!";
 
-            bool success = await SendWaMessage(token, phoneNumber, message);
-            Console.WriteLine(success ? "Pesan berhasil dikirim" : "Gagal mengirim pesan");
+            _x["s"] = DateTime.Now;
+
+        
         }
 
         static async Task<bool> SendWaMessage(string token, string phone, string message)
@@ -144,6 +142,11 @@ namespace WindowsFormsApp1
                 HttpResponseMessage response = await client.PostAsync("https://solo.wablas.com/api/send-message", content);
                 return response.IsSuccessStatusCode;
             }
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+            _readCountMonitor.Reset();
         }
     }
 }

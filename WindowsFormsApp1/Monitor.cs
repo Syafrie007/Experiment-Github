@@ -38,19 +38,22 @@ namespace xx
         }
     }
 
+
     public class ReadCountMonitor
     {
 
         private List<Tuple<string, DateTime>> logs = new List<Tuple<string, DateTime>>();
 
-        private readonly Dictionary<string, DateTime> lastReadTimes = new Dictionary<string, DateTime>();
         private readonly string dbPath = "temp.db";
         private readonly string apiEndpoint;
         //private readonly Timer pushTimer;
         private readonly Database db;
+
+        private readonly Dictionary<string, DateTime> lastReadTimes = new Dictionary<string, DateTime>();
         private readonly Dictionary<string, TagRecord> monitoredTags = new Dictionary<string, TagRecord>();
         private readonly Dictionary<string, int> bacaKe = new Dictionary<string, int>();
         private readonly List<Tuple<TagRecord ,DateTime ,int >> ListDataBaca=new List<Tuple<TagRecord, DateTime, int>>();
+        private  int jumlahAkumulasiTagScanValid = 0;
 
         private TimeSpan apiReqTimeout = TimeSpan.FromSeconds(5);
         
@@ -62,8 +65,6 @@ namespace xx
         public TimeSpan RequiredTimeDiff { get; set; } = TimeSpan.FromMinutes(5);
         public string NamaPerangkat { get; set; }
         
-        public string NomorTelpAdmin { get; set; }
-
         public Settings Settings { get; set; }
 
 
@@ -86,7 +87,7 @@ namespace xx
             EnsureDatabaseCreated();
             //pushTimer = new Timer(pushIntervalSeconds * 1000);
             //pushTimer.Elapsed += async (s, e) => await PushDataToServerFromTemp();
-            _=Monitor();
+            _=MulaiMonitor();
             Log("ReadCountMonitor initialized.");
         }
 
@@ -105,10 +106,21 @@ namespace xx
             Log("Monitoring stopped.");
         }
 
-        private async Task Monitor()
+        public void Reset()
+        {
+            bacaKe.Clear();
+            ListDataBaca.Clear();
+            jumlahAkumulasiTagScanValid = 0;
+            lastReadTimes.Clear();
+            Log($"Data direset.");
+        }
+
+
+        private async Task MulaiMonitor()
         {
             try
             {
+                Log($"Memulai monitor tag scan.");
                 while (true)
                 {
                     if (!isMonitoring)
@@ -159,7 +171,7 @@ namespace xx
                 tag.PropertyChanged += HandleReadCountChange;
                 Log($"Monitoring tag {tag.EPC} started.");
 
-                
+               
 
                 //baca 1
                 await ValidasiTagScan(tag);
@@ -168,41 +180,56 @@ namespace xx
 
         private async void HandleReadCountChange(object sender, PropertyChangedEventArgs e)
         {
-            if (!isMonitoring || e.PropertyName != nameof(TagRecord.ReadCount)) return;
-
-            var tag = sender as TagRecord;
-
-            await ValidasiTagScan(tag);
-        
+            //if (!isMonitoring || e.PropertyName != nameof(TagRecord.ReadCount)) return;
+            if (sender is TagRecord)
+            {
+                var tag = sender as TagRecord;
+                await ValidasiTagScan(tag);
+            }
         }
-
 
         private async Task ValidasiTagScan(TagRecord tag)
         {
             if (tag == null) return;
 
-            var now = DateTime.UtcNow;
+            var now = DateTime.Now;
             var epc = tag.EPC;
             bool isExistingTag = lastReadTimes.ContainsKey(epc);
 
-            if (!isExistingTag || (now - lastReadTimes[epc]) >= RequiredTimeDiff)
+            if (!isExistingTag || (now - lastReadTimes[epc]) > RequiredTimeDiff)
             {
 
                 lastReadTimes[epc] = now;
+
+                if (this.bacaKe.TryGetValue(epc, out var ke))
+                {
+                    ke += 1;
+
+                    this.bacaKe[tag.EPC] = ke;
+                    ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag, now, ke));
+                }
+                else
+                {
+                    this.bacaKe[tag.EPC] = 1;
+                    ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag, now, 1));
+                }
+
+                jumlahAkumulasiTagScanValid += 1;
+                Log($"Jumlah akumulasi Tag scan valid : {jumlahAkumulasiTagScanValid}");
 
                 if (await CekServer())
                 {
                     var obj = new ApiTagRecord()
                     {
-                        Baca_ke = tag.ReadCount,
                         Epc = tag.EPC,
                         Guid = Guid.NewGuid().ToString(),
                         Nama_Perangkat = NamaPerangkat,
-                        Waktu_Scan = DateTime.Now
+                        Waktu_Scan = DateTime.Now,
+                        Baca_ke=ke
                     };
 
                     await SendToServer(obj);
-                    this.bacaKe[tag.EPC] = obj.Baca_ke;
+
 
 
                     //kirim WA ke user
@@ -214,44 +241,22 @@ namespace xx
 
                     //kirim WA ke Admin
                     Log($"Kirim WA ke Admin");
-                    _ = KirimWAKeAdmin($"Scan valid {obj.Epc}, Scan valid ke {obj.Baca_ke}");
+                    _ = KirimWAKeAdmin($"Akumulasi tag scan valid: {jumlahAkumulasiTagScanValid}.");
 
 
                     ReadCountChanged?.Invoke(this, new ReadCountChangedEventArgs(tag, now, this.bacaKe[epc]));
                 }
                 else
                 {
-                    var last = db.Fetch<DbTagRecord>("SELECT * FROM ScanData where Epc=@0 ORDER BY Waktu_Scan DESC Limit 1", tag.EPC)
-                               .FirstOrDefault();
-
-                    //tambah baca ke
-                    if (last != null)
-                    {
-                        this.bacaKe[tag.EPC] = last.Baca_ke + 1;
-                    }
-
-
-                    if (this.bacaKe.TryGetValue(epc, out var ke))
-                    {
-
-                        ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag, now, ke));
-                    }
-                    else
-                    {
-                        this.bacaKe.Add(epc, 1);
-                        ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag, now, 1));
-                    }
-
-                    SaveToDatabase(tag);
+                     SaveToDatabase(tag);
                     ReadCountChanged?.Invoke(this, new ReadCountChangedEventArgs(tag, now, this.bacaKe[epc]));
                 }
 
+                Log(string.Format("Tag {0} ReadCount updated to {1}. Baca Ke {2}.", epc, tag.ReadCount, bacaKe[epc]));
             }
 
-            Log(string.Format("Tag {0} ReadCount updated to {1}. Baca Ke {2}.", epc, tag.ReadCount, bacaKe[epc]));
 
         }
-
 
         private void SaveToDatabase(TagRecord tag)
         {
@@ -261,7 +266,7 @@ namespace xx
                 Guid = Guid.NewGuid().ToString(),
                 Nama_Perangkat = NamaPerangkat,
                 Epc = tag.EPC,
-                Waktu_Scan = DateTime.UtcNow,
+                Waktu_Scan = DateTime.Now,
                 Baca_ke = this.bacaKe[tag.EPC]
             });
 
@@ -311,27 +316,6 @@ namespace xx
         {
             try
             {
-
-                var lastRecord = await GetTagScanTerakhir(scanData.Epc);
-
-                if (lastRecord.StatusCode != HttpStatusCode.OK)
-                    return false;
-
-
-                if (lastRecord.Data == null)
-                {
-                    Console.WriteLine($"Belum ada data diserver, baca ke akan diset ke 1 ");
-
-                    scanData.Baca_ke = 1;
-                }
-                else
-                {
-                    Console.WriteLine($"Data terakhir epc {scanData.Epc}, baca ke={lastRecord.Data.Baca_ke}.");
-
-                    scanData.Baca_ke = lastRecord.Data.Baca_ke + 1;
-                }
-
-
                 var options = new RestClientOptions(apiEndpoint)
                 {
                     Timeout = apiReqTimeout
@@ -435,7 +419,6 @@ namespace xx
             }
         }
 
-
         public async Task<bool> KirimWAKeUser(string epc,string pesan)
         {
             if ( await CekServer())
@@ -459,9 +442,8 @@ namespace xx
 
         public async Task<bool> KirimWAKeAdmin(string pesan)
         {
-              return await SendWaMessageCore(_WaBlastToken, NomorTelpAdmin, pesan);
+              return await SendWaMessageCore(_WaBlastToken, Settings.HpAdmin, pesan);
         }
-
 
         public async Task<RestResponse<List<ApiNoTelp>>> GetNoTelp(string epc)
         {
@@ -483,8 +465,6 @@ namespace xx
                 return null;
             }
         }
-
-
 
         public List<DbTagRecord> GetAllTagScanFromTemp(string epc)
         {
@@ -551,22 +531,6 @@ namespace xx
 
         public async Task<bool> SendWaMessageCore(string token, string phone, string message)
         {
-            //using (HttpClient client = new HttpClient())
-            //{
-
-            //    Log($"Mengirim pesan WA ke {phone}, Pesan: {message}");
-
-            //    client.DefaultRequestHeaders.Add("Authorization", token);
-            //    var content = new StringContent($"{{\"phone\":\"{phone}\",\"message\":\"{message}\"}}", Encoding.UTF8, "application/json");
-            //    HttpResponseMessage response = await client.PostAsync("https://solo.wablas.com/api/send-message", content);
-
-            //    Log($"Kirim pesan status kode: {response.StatusCode}");
-
-
-            //    return response.IsSuccessStatusCode;
-            //}
-
-
             try
             {
                 var options = new RestClientOptions(apiEndpoint)
@@ -595,8 +559,7 @@ namespace xx
         {
             Debug.WriteLine(pesan);
             logs.Add(new Tuple<string, DateTime>(pesan, DateTime.Now));
-        }
-    
+        }   
 
         public static void ShowSettingsForm(string fname)
         {
@@ -612,8 +575,7 @@ namespace xx
 
                 f.ShowDialog();
             }
-        }
-    
+        }   
 
     }
 
