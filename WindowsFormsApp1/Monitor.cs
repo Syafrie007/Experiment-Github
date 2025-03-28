@@ -52,20 +52,20 @@ namespace xx
         private readonly Dictionary<string, DateTime> lastReadTimes = new Dictionary<string, DateTime>();
         private readonly Dictionary<string, TagRecord> monitoredTags = new Dictionary<string, TagRecord>();
         private readonly Dictionary<string, int> bacaKe = new Dictionary<string, int>();
-        private readonly List<Tuple<TagRecord ,DateTime ,int >> ListDataBaca=new List<Tuple<TagRecord, DateTime, int>>();
+        private readonly List<Tuple<TagRecord, DateTime, int>> ListDataBaca = new List<Tuple<TagRecord, DateTime, int>>();
         private readonly Dictionary<int, int> jumlahAkumulasiPerPeriodeScan = new Dictionary<int, int>();
-        private  int jumlahAkumulasiTagScanValid = 0;
+        private int jumlahAkumulasiTagScanValid = 0;
 
         private TimeSpan apiReqTimeout = TimeSpan.FromSeconds(5);
-        
-        
+
+
         public event EventHandler<ReadCountChangedEventArgs> ReadCountChanged;
 
 
         //public properties
         public TimeSpan RequiredTimeDiff { get; set; } = TimeSpan.FromMinutes(5);
         public string NamaPerangkat { get; set; }
-        
+
         public Settings Settings { get; set; }
 
 
@@ -76,7 +76,7 @@ namespace xx
         {
             if (!File.Exists(settingFileName))
             {
-                throw new Exception("Belum ada pengaturan");                
+                throw new Exception("Belum ada pengaturan");
             }
 
             Settings = new Settings(settingFileName);
@@ -88,7 +88,7 @@ namespace xx
             EnsureDatabaseCreated();
             //pushTimer = new Timer(pushIntervalSeconds * 1000);
             //pushTimer.Elapsed += async (s, e) => await PushDataToServerFromTemp();
-            _=MulaiMonitor();
+            _ = MulaiMonitor();
             Log("ReadCountMonitor initialized.");
         }
 
@@ -135,7 +135,7 @@ namespace xx
                     await Task.Delay(1000);
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
             }
@@ -173,7 +173,7 @@ namespace xx
                 tag.PropertyChanged += HandleReadCountChange;
                 Log($"Monitoring tag {tag.EPC} started.");
 
-               
+
 
                 //baca 1
                 await ValidasiTagScan(tag);
@@ -213,21 +213,21 @@ namespace xx
                 else
                 {
                     this.bacaKe[tag.EPC] = 1;
-                    ke = 1;                    
+                    ke = 1;
                     ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag, now, 1));
                 }
 
 
                 jumlahAkumulasiTagScanValid += 1;
-                
+
                 if (jumlahAkumulasiPerPeriodeScan.ContainsKey(ke))
                 {
-                    jumlahAkumulasiPerPeriodeScan[ke] = jumlahAkumulasiPerPeriodeScan[ke]+1;
+                    jumlahAkumulasiPerPeriodeScan[ke] = jumlahAkumulasiPerPeriodeScan[ke] + 1;
                 }
                 else
                 {
                     jumlahAkumulasiPerPeriodeScan[ke] = 1;
-                }              
+                }
 
                 Log($"Periode {ke} Jumlah akumulasi tag scan valid = {jumlahAkumulasiPerPeriodeScan[ke]}");
 
@@ -239,7 +239,7 @@ namespace xx
                         Guid = Guid.NewGuid().ToString(),
                         Nama_Perangkat = NamaPerangkat,
                         Waktu_Scan = DateTime.Now,
-                        Baca_ke=ke
+                        Baca_ke = ke
                     };
 
                     await SendToServer(obj);
@@ -247,11 +247,11 @@ namespace xx
 
 
                     //kirim WA ke user
-                    if (obj.Baca_ke == 1)
-                    {
-                        Log($"Kirim WA ke User {obj.Epc}");
-                        _ = KirimWAKeUser(epc, $"Hai, nama kamu tercatat pada {obj.Waktu_Scan}, Scan Ke {obj.Baca_ke}");
-                    }
+                    //if (obj.Baca_ke == 1)
+                    //{
+                    Log($"Kirim WA ke User {obj.Epc}");
+                    _ = KirimWAKeUser(epc, $"Hai, ###nama tercatat pada {obj.Nama_Perangkat} {obj.Waktu_Scan.ToString("dd/MM/yyyy HH:mm:ss")}, Scan Ke {obj.Baca_ke}");
+                    //}
 
                     //kirim WA ke Admin
                     Log($"Kirim WA ke Admin");
@@ -262,7 +262,7 @@ namespace xx
                 }
                 else
                 {
-                     SaveToDatabase(tag);
+                    SaveToDatabase(tag);
                     ReadCountChanged?.Invoke(this, new ReadCountChangedEventArgs(tag, now, this.bacaKe[epc]));
                 }
 
@@ -292,7 +292,7 @@ namespace xx
         {
 
             //cek server
-            if (!isMonitoring || ! (await CekServer())) return;
+            if (!isMonitoring || !(await CekServer())) return;
 
 
             var scanDataList = db.Fetch<DbTagRecord>(
@@ -341,7 +341,7 @@ namespace xx
                 var body = JsonConvert.SerializeObject(scanData);
                 request.AddStringBody(body, DataFormat.Json);
                 RestResponse response = await client.ExecuteAsync(request);
-                if (response.StatusCode ==HttpStatusCode.OK)
+                if (response.StatusCode == HttpStatusCode.OK)
                 {
                     Console.WriteLine($"Berhasil push ke server. " + response.Content);
                     return true;
@@ -353,14 +353,14 @@ namespace xx
                 }
 
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Console.WriteLine($"Error: {ex}");
                 return false;
             }
         }
 
-        public async Task< bool> CekServer()
+        public async Task<bool> CekServer()
         {
             try
             {
@@ -405,7 +405,7 @@ namespace xx
                 var response = await client.ExecuteAsync<ApiTagRecord>(request);
                 return response;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Console.WriteLine($"Error: {ex}");
                 return null;
@@ -433,13 +433,14 @@ namespace xx
             }
         }
 
-        public async Task<bool> KirimWAKeUser(string epc,string pesan)
+        public async Task<bool> KirimWAKeUser(string epc, string pesan)
         {
-            if ( await CekServer())
+            if (await CekServer())
             {
                 var noTelp = await GetNoTelp(epc);
                 if (noTelp.Data.Count > 0)
                 {
+                    pesan = pesan.Replace("###nama", noTelp.Data.First().Nama);
                     return await SendWaMessageCore(_WaBlastToken, noTelp.Data.First().No_hp, pesan);
                 }
                 else
@@ -456,7 +457,7 @@ namespace xx
 
         public async Task<bool> KirimWAKeAdmin(string pesan)
         {
-              return await SendWaMessageCore(_WaBlastToken, Settings.HpAdmin, pesan);
+            return await SendWaMessageCore(_WaBlastToken, Settings.HpAdmin, pesan);
         }
 
         public async Task<RestResponse<List<ApiNoTelp>>> GetNoTelp(string epc)
@@ -483,7 +484,7 @@ namespace xx
         public List<DbTagRecord> GetAllTagScanFromTemp(string epc)
         {
             var scanDataList = db.Fetch<DbTagRecord>(
-                "SELECT * FROM ScanData Where Epc=@0",epc);
+                "SELECT * FROM ScanData Where Epc=@0", epc);
             return scanDataList;
         }
 
@@ -498,7 +499,15 @@ namespace xx
                     using (var f = new FormTagScanViewer())
                     {
                         f.Text = "Data tag scan dari SERVER";
-                        f.dgv.DataSource = res.Data;
+
+                        var l = res.Data.OrderByDescending(x => x.Waktu_Scan).ToList();
+                        foreach (var item in l)
+                        {
+                            item.Waktu_Scan = item.Waktu_Scan.ToLocalTime();
+                        }
+
+                        f.dgv.DataSource = l;
+                        f.dgv.Columns[nameof(ApiTagRecord.Waktu_Scan)].DefaultCellStyle.Format = "dd/MM/yyyy HH:mm:ss";
                         f.dgv.Columns[0].Visible = false;
 
                         //remove log tab
@@ -515,10 +524,16 @@ namespace xx
                 {
                     f.Text = "Data tag scan dari TEMPORARY DATA";
 
-                    f.dgv.DataSource = GetAllTagScanFromTemp(epc);
+                    var data = GetAllTagScanFromTemp(epc);
+                    foreach (var item in data)
+                    {
+                        item.Waktu_Scan = item.Waktu_Scan.ToLocalTime();
+                    }
+
+                    f.dgv.DataSource = data.OrderByDescending(x => x.Waktu_Scan).ToList();
                     f.dgv.Columns[0].Visible = false;
                     f.dgv.Columns[1].Visible = false;
-
+                    f.dgv.Columns[nameof(ApiTagRecord.Waktu_Scan)].DefaultCellStyle.Format = "dd/MM/yyyy HH:mm:ss";
                     //remove log tab
                     f.tabControl1.TabPages.RemoveAt(1);
 
@@ -573,7 +588,7 @@ namespace xx
         {
             Debug.WriteLine(pesan);
             logs.Add(new Tuple<string, DateTime>(pesan, DateTime.Now));
-        }   
+        }
 
         public static void ShowSettingsForm(string fname)
         {
@@ -589,9 +604,10 @@ namespace xx
 
                 f.ShowDialog();
             }
-        }   
+        }
 
     }
+
 
     public class ReadCountChangedEventArgs : EventArgs
     {
