@@ -2,10 +2,12 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -100,7 +102,8 @@ namespace WindowsFormsApp1
 
         private void button1_Click(object sender, EventArgs e)
         {
-            _records[(int)numericUpDown1.Value].ReadCount += 1;
+            
+            _records[dataGridView1.CurrentCell.RowIndex].ReadCount += 1;
         }
 
         private void button2_Click(object sender, EventArgs e)
@@ -124,13 +127,14 @@ namespace WindowsFormsApp1
             //_readCountMonitor.Settings.Reload();
         }
 
-        private Dictionary<string, DateTime> _x=new Dictionary<string, DateTime>();
+       
         private async void button5_Click(object sender, EventArgs e)
         {
 
-            _x["s"] = DateTime.Now;
+            var method = typeof(xx).GetMethod("y");
+            typeof(xx).GetField("GetMessage", BindingFlags.Static | BindingFlags.NonPublic)
+                ?.SetValue(null, new Func<string>(() => "Hello from reflection!"));
 
-        
         }
 
         static async Task<bool> SendWaMessage(string token, string phone, string message)
@@ -147,6 +151,28 @@ namespace WindowsFormsApp1
         private void button6_Click(object sender, EventArgs e)
         {
             _readCountMonitor.Reset();
+        }
+
+        public class xx
+        {
+            public void y()
+            {
+                Debug.WriteLine("iii");
+            }
+        }
+
+        private void button7_Click(object sender, EventArgs e)
+        {
+            var random = new Random();
+
+            var g = new TagRecord
+            {
+                //EPC = $"EPC-{random.Next(100000, 999999)}",
+                EPC = "EPC12345"+"abcdefghijklmn"[random.Next(0,9)]+ "abcdefghijklmn"[random.Next(0, 9)]+ "abcdefghijklmn"[random.Next(0, 9)],
+                NamaPerangkat = $"Device-{random.Next(1, 10)}",
+                ReadCount = random.Next(1, 50)
+            };
+            _records.Add(g);
         }
     }
 }

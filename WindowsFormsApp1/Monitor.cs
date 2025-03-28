@@ -53,6 +53,7 @@ namespace xx
         private readonly Dictionary<string, TagRecord> monitoredTags = new Dictionary<string, TagRecord>();
         private readonly Dictionary<string, int> bacaKe = new Dictionary<string, int>();
         private readonly List<Tuple<TagRecord ,DateTime ,int >> ListDataBaca=new List<Tuple<TagRecord, DateTime, int>>();
+        private readonly Dictionary<int, int> jumlahAkumulasiPerPeriodeScan = new Dictionary<int, int>();
         private  int jumlahAkumulasiTagScanValid = 0;
 
         private TimeSpan apiReqTimeout = TimeSpan.FromSeconds(5);
@@ -112,6 +113,7 @@ namespace xx
             ListDataBaca.Clear();
             jumlahAkumulasiTagScanValid = 0;
             lastReadTimes.Clear();
+            jumlahAkumulasiPerPeriodeScan.Clear();
             Log($"Data direset.");
         }
 
@@ -211,11 +213,23 @@ namespace xx
                 else
                 {
                     this.bacaKe[tag.EPC] = 1;
+                    ke = 1;                    
                     ListDataBaca.Add(new Tuple<TagRecord, DateTime, int>(tag, now, 1));
                 }
 
+
                 jumlahAkumulasiTagScanValid += 1;
-                Log($"Jumlah akumulasi Tag scan valid : {jumlahAkumulasiTagScanValid}");
+                
+                if (jumlahAkumulasiPerPeriodeScan.ContainsKey(ke))
+                {
+                    jumlahAkumulasiPerPeriodeScan[ke] = jumlahAkumulasiPerPeriodeScan[ke]+1;
+                }
+                else
+                {
+                    jumlahAkumulasiPerPeriodeScan[ke] = 1;
+                }              
+
+                Log($"Periode {ke} Jumlah akumulasi tag scan valid = {jumlahAkumulasiPerPeriodeScan[ke]}");
 
                 if (await CekServer())
                 {
@@ -241,7 +255,7 @@ namespace xx
 
                     //kirim WA ke Admin
                     Log($"Kirim WA ke Admin");
-                    _ = KirimWAKeAdmin($"Akumulasi tag scan valid: {jumlahAkumulasiTagScanValid}.");
+                    _ = KirimWAKeAdmin($"Periode {ke} Jumlah akumulasi tag scan valid = {jumlahAkumulasiPerPeriodeScan[ke]}");
 
 
                     ReadCountChanged?.Invoke(this, new ReadCountChangedEventArgs(tag, now, this.bacaKe[epc]));
