@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 using System.Net.Http;
 using RestSharp;
 using WindowsFormsApp1;
+using System.Threading;
 
 namespace xx
 {
@@ -48,6 +49,7 @@ namespace xx
         private readonly string apiEndpoint;
         //private readonly Timer pushTimer;
         private readonly Database db;
+        private static readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
 
         private readonly Dictionary<string, DateTime> lastReadTimes = new Dictionary<string, DateTime>();
         private readonly Dictionary<string, TagRecord> monitoredTags = new Dictionary<string, TagRecord>();
@@ -156,7 +158,8 @@ namespace xx
                         Nama_Perangkat TEXT,
                         Epc TEXT,
                         Waktu_Scan DATETIME,
-                        Baca_ke INTEGER
+                        Baca_ke INTEGER,
+                        Akumulasi_Per_Periode INTEGER
                     );";
                         cmd.ExecuteNonQuery();
                     }
@@ -239,7 +242,8 @@ namespace xx
                         Guid = Guid.NewGuid().ToString(),
                         Nama_Perangkat = NamaPerangkat,
                         Waktu_Scan = DateTime.Now,
-                        Baca_ke = ke
+                        Baca_ke = ke,
+                        umlahAkumulasiPerPeriodeScan[ke]
                     };
 
                     await SendToServer(obj);
@@ -294,36 +298,59 @@ namespace xx
             //cek server
             if (!isMonitoring || !(await CekServer())) return;
 
+            await _semaphore.WaitAsync();
 
-            var scanDataList = db.Fetch<DbTagRecord>(
-                "SELECT * FROM ScanData ORDER BY Waktu_Scan ASC");
-            if (scanDataList.Count > 0)
+            try
             {
-                Log($"Terdapat {scanDataList.Count} data temporary yang akan dipush ke server.");
+
+                var scanDataList = db.Fetch<DbTagRecord>(
+                    "SELECT * FROM ScanData ORDER BY Waktu_Scan ASC");
+                if (scanDataList.Count > 0)
+                {
+                    Log($"Terdapat {scanDataList.Count} data temporary yang akan dipush ke server.");
+                }
+
+                foreach (var scanData in scanDataList)
+                {
+                    var ok = await SendToServer(new ApiTagRecord()
+                    {
+                        Baca_ke = scanData.Baca_ke,
+                        Epc = scanData.Epc,
+                        Guid = scanData.Guid,
+                        Nama_Perangkat = scanData.Nama_Perangkat,
+                        Waktu_Scan = scanData.Waktu_Scan
+
+                    });
+
+                    if (ok)
+                    {
+                        db.Execute("DELETE FROM ScanData WHERE Id = @0", scanData.Id);
+                        Log($"Pushed tag {scanData.Epc} : {scanData.Baca_ke} to server.");
+
+
+                        Log($"Kirim WA ke User {scanData.Epc}");
+                        _ = KirimWAKeUser(scanData.Epc, $"Hai, ###nama tercatat pada {scanData.Nama_Perangkat} {scanData.Waktu_Scan.ToString("dd/MM/yyyy HH:mm:ss")}, Scan Ke {scanData.Baca_ke}");
+
+
+                        Log($"Kirim WA ke Admin");
+                        _ = KirimWAKeAdmin($"Periode {scanData.Baca_ke} Jumlah akumulasi tag scan valid = {jumlahAkumulasiPerPeriodeScan[scanData.Baca_ke]}");
+
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            catch(Exception ex)
+            {
+                Log("Terjadi kesalahan.\n" + ex.ToString());
+            }
+            finally
+            {
+                _semaphore.Release();
             }
 
-            foreach (var scanData in scanDataList)
-            {
-                var ok = await SendToServer(new ApiTagRecord()
-                {
-                    Baca_ke = scanData.Baca_ke,
-                    Epc = scanData.Epc,
-                    Guid = scanData.Guid,
-                    Nama_Perangkat = scanData.Nama_Perangkat,
-                    Waktu_Scan = scanData.Waktu_Scan
-
-                });
-
-                if (ok)
-                {
-                    db.Execute("DELETE FROM ScanData WHERE Id = @0", scanData.Id);
-                    Log($"Pushed tag {scanData.Epc} : {scanData.Baca_ke} to server.");
-                }
-                else
-                {
-                    break;
-                }
-            }
         }
 
         public async Task<bool> SendToServer(ApiTagRecord scanData)
@@ -649,6 +676,8 @@ namespace xx
         public string Epc { get; set; }
         public DateTime Waktu_Scan { get; set; }
         public int Baca_ke { get; set; }
+
+        public int Akumulasi_Per_Periode { get; set; }
     }
 
     public class Settings
