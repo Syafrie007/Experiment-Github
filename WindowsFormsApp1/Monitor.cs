@@ -314,7 +314,7 @@ namespace xx
                         Epc = scanData.Epc,
                         Guid = scanData.Guid,
                         Nama_Perangkat = scanData.Nama_Perangkat,
-                        Waktu_Scan = scanData.Waktu_Scan
+                        Waktu_Scan = scanData.Waktu_Scan,                        
 
                     });
 
