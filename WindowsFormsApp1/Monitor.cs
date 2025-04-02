@@ -240,7 +240,7 @@ namespace xx
                         Guid = Guid.NewGuid().ToString(),
                         Nama_Perangkat = NamaPerangkat,
                         Waktu_Scan = DateTime.Now,
-                        Baca_ke = jumlahAkumulasiPerPeriodeScan[ke]
+                        Baca_ke = ke
                     };
 
                     await SendToServer(obj);
