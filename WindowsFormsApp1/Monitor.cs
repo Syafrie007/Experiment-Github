@@ -56,7 +56,6 @@ namespace xx
         private readonly Dictionary<string, int> bacaKe = new Dictionary<string, int>();
         private readonly List<Tuple<TagRecord, DateTime, int>> ListDataBaca = new List<Tuple<TagRecord, DateTime, int>>();
         private readonly Dictionary<int, int> jumlahAkumulasiPerPeriodeScan = new Dictionary<int, int>();
-        private int jumlahAkumulasiTagScanValid = 0;
 
         private TimeSpan apiReqTimeout = TimeSpan.FromSeconds(5);
 
@@ -113,7 +112,6 @@ namespace xx
         {
             bacaKe.Clear();
             ListDataBaca.Clear();
-            jumlahAkumulasiTagScanValid = 0;
             lastReadTimes.Clear();
             jumlahAkumulasiPerPeriodeScan.Clear();
             Log($"Data direset.");
@@ -221,8 +219,6 @@ namespace xx
                 }
 
 
-                jumlahAkumulasiTagScanValid += 1;
-
                 if (jumlahAkumulasiPerPeriodeScan.ContainsKey(ke))
                 {
                     jumlahAkumulasiPerPeriodeScan[ke] = jumlahAkumulasiPerPeriodeScan[ke] + 1;
@@ -234,6 +230,8 @@ namespace xx
 
                 Log($"Periode {ke} Jumlah akumulasi tag scan valid = {jumlahAkumulasiPerPeriodeScan[ke]}");
 
+              
+
                 if (await CekServer())
                 {
                     var obj = new ApiTagRecord()
@@ -242,25 +240,23 @@ namespace xx
                         Guid = Guid.NewGuid().ToString(),
                         Nama_Perangkat = NamaPerangkat,
                         Waktu_Scan = DateTime.Now,
-                        Baca_ke = ke,
-                        umlahAkumulasiPerPeriodeScan[ke]
+                        Baca_ke = jumlahAkumulasiPerPeriodeScan[ke]
                     };
 
                     await SendToServer(obj);
 
-
-
                     //kirim WA ke user
-                    //if (obj.Baca_ke == 1)
-                    //{
-                    Log($"Kirim WA ke User {obj.Epc}");
-                    _ = KirimWAKeUser(epc, $"Hai, ###nama tercatat pada {obj.Nama_Perangkat} {obj.Waktu_Scan.ToString("dd/MM/yyyy HH:mm:ss")}, Scan Ke {obj.Baca_ke}");
-                    //}
+                    if (obj.Baca_ke == 1)
+                    {
+                        var pesan1 = $"Hai, ###nama tercatat pada {obj.Nama_Perangkat} {obj.Waktu_Scan.ToString("dd/MM/yyyy HH:mm:ss")}, Scan Ke {obj.Baca_ke}";
+                        Log($"Kirim WA ke User {obj.Epc}: {pesan1}");
+                        _ = KirimWAKeUser(epc,pesan1);
+                    }
 
                     //kirim WA ke Admin
-                    Log($"Kirim WA ke Admin");
-                    _ = KirimWAKeAdmin($"Periode {ke} Jumlah akumulasi tag scan valid = {jumlahAkumulasiPerPeriodeScan[ke]}");
-
+                    var pesan2 = $"Periode {ke} Jumlah akumulasi tag scan valid = {jumlahAkumulasiPerPeriodeScan[ke]}";
+                    Log($"Kirim WA ke Admin: {pesan2}");
+                    _ = KirimWAKeAdmin(pesan2);
 
                     ReadCountChanged?.Invoke(this, new ReadCountChangedEventArgs(tag, now, this.bacaKe[epc]));
                 }
@@ -273,19 +269,19 @@ namespace xx
                 Log(string.Format("Tag {0} ReadCount updated to {1}. Baca Ke {2}.", epc, tag.ReadCount, bacaKe[epc]));
             }
 
-
         }
 
         private void SaveToDatabase(TagRecord tag)
         {
 
-            db.Insert("ScanData", "Id", new ApiTagRecord()
+            db.Insert("ScanData", "Id", new DbTagRecord()
             {
                 Guid = Guid.NewGuid().ToString(),
                 Nama_Perangkat = NamaPerangkat,
                 Epc = tag.EPC,
                 Waktu_Scan = DateTime.Now,
-                Baca_ke = this.bacaKe[tag.EPC]
+                Baca_ke = this.bacaKe[tag.EPC],
+                Akumulasi_Per_Periode=jumlahAkumulasiPerPeriodeScan[bacaKe[tag.EPC]]
             });
 
 
@@ -327,13 +323,17 @@ namespace xx
                         db.Execute("DELETE FROM ScanData WHERE Id = @0", scanData.Id);
                         Log($"Pushed tag {scanData.Epc} : {scanData.Baca_ke} to server.");
 
+                        if (scanData.Baca_ke == 1)
+                        {
+                            var pesan1 = $"Hai, ###nama tercatat pada {scanData.Nama_Perangkat} {scanData.Waktu_Scan.ToString("dd/MM/yyyy HH:mm:ss")}, Scan Ke {scanData.Baca_ke}";
+                            Log($"Kirim WA ke User {scanData.Epc}: {pesan1}");
+                            
+                            _ = KirimWAKeUser(scanData.Epc, pesan1);
+                        }
 
-                        Log($"Kirim WA ke User {scanData.Epc}");
-                        _ = KirimWAKeUser(scanData.Epc, $"Hai, ###nama tercatat pada {scanData.Nama_Perangkat} {scanData.Waktu_Scan.ToString("dd/MM/yyyy HH:mm:ss")}, Scan Ke {scanData.Baca_ke}");
-
-
-                        Log($"Kirim WA ke Admin");
-                        _ = KirimWAKeAdmin($"Periode {scanData.Baca_ke} Jumlah akumulasi tag scan valid = {jumlahAkumulasiPerPeriodeScan[scanData.Baca_ke]}");
+                        var pesan2 = $"Periode {scanData.Baca_ke} Jumlah akumulasi tag scan valid = {scanData.Akumulasi_Per_Periode}";
+                        Log($"Kirim WA ke Admin: {pesan2}");
+                        _ = KirimWAKeAdmin(pesan2);
 
                     }
                     else

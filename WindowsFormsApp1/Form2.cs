@@ -86,16 +86,25 @@ namespace WindowsFormsApp1
             var random = new Random();
             var dummyTags = new List<TagRecord>();
 
-            for (int i = 0; i < count; i++)
+            dummyTags.Add(new TagRecord
             {
-                dummyTags.Add(new TagRecord
-                {
-                    //EPC = $"EPC-{random.Next(100000, 999999)}",
-                    EPC= "EPC12345",
-                    NamaPerangkat = $"Device-{random.Next(1, 10)}",
-                    ReadCount = random.Next(1, 50)
-                });
-            }
+                //EPC = $"EPC-{random.Next(100000, 999999)}",
+                EPC= "EPC12345",
+                NamaPerangkat = $"Device-{random.Next(1, 10)}",
+                ReadCount = random.Next(1, 50)
+            });
+
+
+            //for (int i = 0; i < count; i++)
+            //{
+            //    dummyTags.Add(new TagRecord
+            //    {
+            //        EPC = $"EPC-{random.Next(100000, 999999)}",
+            //        //EPC= "EPC12345",
+            //        NamaPerangkat = $"Device-{random.Next(1, 10)}",
+            //        ReadCount = random.Next(1, 50)
+            //    });
+            //}
 
             return dummyTags;
         }
@@ -110,6 +119,7 @@ namespace WindowsFormsApp1
         {
             var l = GenerateDummyTags(1);
             _records.Add(l.First());
+            _readCountMonitor.MonitorTag(l.First());
         }
 
         private void button3_Click(object sender, EventArgs e)
